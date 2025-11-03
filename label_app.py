@@ -127,30 +127,27 @@ def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r)
     st.info("As pastas 'train', 'test' e 'valid' foram criadas neste diretório.")
     st.session_state.show_division = False
 
-def next_image():
-    """Avança para a próxima imagem."""
-    if st.session_state.CURRENT_IMAGE_INDEX < len(st.session_state.IMAGE_FILES) - 1:
-        st.session_state.CURRENT_IMAGE_INDEX += 1
-    else:
-        st.info("Fim da lista de imagens.")
-
-def prev_image():
-    """Volta para a imagem anterior."""
-    if st.session_state.CURRENT_IMAGE_INDEX > 0:
-        st.session_state.CURRENT_IMAGE_INDEX -= 1
-    else:
-        st.info("Primeira imagem da lista.")
-
 def load_images_from_path(path_to_process):
-    """Lógica centralizada para carregar imagens e atualizar o session state."""
-    st.session_state.DATASET_ROOT = path_to_process
+    """
+    Lógica centralizada para carregar imagens e atualizar o session state.
+    Utiliza os.path.normpath() para garantir compatibilidade de caminhos.
+    """
+    # CORREÇÃO: Normaliza o caminho para lidar com barras invertidas e formatos de OS
+    normalized_path = os.path.normpath(path_to_process)
     
-    all_files = glob.glob(os.path.join(path_to_process, "*.*"))
+    if not os.path.isdir(normalized_path):
+        st.error(f"Caminho inválido ou pasta não encontrada: {normalized_path}")
+        return False
+
+    st.session_state.DATASET_ROOT = normalized_path
+    
+    all_files = glob.glob(os.path.join(normalized_path, "*.*"))
     img_extensions = ['.jpg', '.jpeg', '.png']
     st.session_state.IMAGE_FILES = [f for f in all_files if os.path.splitext(f)[1].lower() in img_extensions]
     st.session_state.CURRENT_IMAGE_INDEX = 0
     st.session_state.BOUNDING_BOXES = []
-    st.success(f"Encontradas {len(st.session_state.IMAGE_FILES)} imagens em: {path_to_process}")
+    st.success(f"Encontradas {len(st.session_state.IMAGE_FILES)} imagens em: {normalized_path}")
+    return True
     
 # --- 3. Execução Principal ---
 
@@ -164,7 +161,7 @@ with st.sidebar:
     
     st.subheader("1. Carregar Pasta de Imagens (Requisito 1)")
     
-    st.caption("Copie e cole o caminho absoluto da pasta (ex: C:\\Users\\...\\images):")
+    st.caption("Insira o caminho absoluto da pasta (ex: C:\\Users\\...\\images):")
     
     # Input de texto para o caminho da pasta
     temp_root = st.text_input(
@@ -174,26 +171,25 @@ with st.sidebar:
         label_visibility="collapsed"
     )
     
-    # >>> BOTÃO DE CARREGAMENTO REINTEGRADO <<<
-    if st.button("▶️ Carregar Pasta", type="primary"):
-        if os.path.isdir(temp_root):
-            load_images_from_path(temp_root)
+    # Botão de Carregamento Explícito
+    if st.button("Carregar Pasta", type="primary"):
+        if load_images_from_path(temp_root):
+            # Recarrega se o carregamento for bem-sucedido
             st.experimental_rerun()
-        else:
-            st.error(f"Caminho inválido ou pasta não encontrada: {temp_root}")
-            
-    # Lógica para o Drag-and-Drop de um arquivo (UX)
-    st.markdown("---")
-    st.caption("**DICA:** Arraste um arquivo de imagem para o espaço abaixo e depois COPIE o caminho dele para o campo acima.")
     
-    st.file_uploader(
-        "Arraste um arquivo (NÃO use para carregar a pasta!)",
+    st.caption("DICA: Arraste e solte um arquivo abaixo para obter uma pré-visualização do nome do arquivo.")
+    
+    uploaded_file = st.file_uploader(
+        "Arraste e solte um arquivo (NÃO USE PARA CARREGAR A PASTA!)",
         type=['jpg', 'jpeg', 'png', 'txt'],
         accept_multiple_files=False,
-        key='file_hint_uploader',
-        label_visibility="collapsed"
+        key='file_hint_uploader'
     )
     
+    if uploaded_file is not None:
+        st.code(f"Nome do arquivo: {uploaded_file.name}", language='text')
+        st.warning("Lembre-se: Você deve digitar o caminho da PASTA no campo acima!")
+
     # Exibe o caminho atual
     if st.session_state.DATASET_ROOT:
          st.info(f"Pasta de trabalho: **{st.session_state.DATASET_ROOT}**")
