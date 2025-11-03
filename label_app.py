@@ -275,4 +275,82 @@ if st.session_state.IMAGE_FILES:
             for i, obj in enumerate(canvas_result.json_data['objects']):
                 if obj['type'] == 'rect':
                     # Aqui, a lógica de input da classe (Requisito 4) seria implementada,
-                    # mas usaremos o valor do st
+                    # mas usaremos o valor do st.session_state.current_class_id.
+                    
+                    # O streamlit_drawable_canvas retorna coordenadas que podem ter sido escaladas
+                    # Se você não dimensionar a imagem, as coordenadas 'left/top/width/height' estão em pixels
+                    box_info = {
+                        'left': obj['left'],
+                        'top': obj['top'],
+                        'width': obj['width'],
+                        'height': obj['height'],
+                        'class_id': st.session_state.current_class_id # Anexa o ID da classe atual
+                    }
+                    final_boxes_to_save.append(box_info)
+                    st.write(f"Box {i+1} - Classe: {st.session_state.current_class_id}")
+            
+            if st.button("💾 Processar e Salvar Labels", type="primary"):
+                if save_labels(current_image_path, final_boxes_to_save):
+                    st.success(f"Labels salvos para {os.path.basename(current_image_path)}!")
+                    # Avança para a próxima imagem após salvar
+                    next_image()
+                    st.experimental_rerun()
+                else:
+                    st.error("Erro ao salvar labels.")
+
+
+    except Exception as e:
+        st.error(f"Erro ao carregar ou exibir imagem: {e}")
+        st.warning("Verifique se o caminho da pasta está correto e se as bibliotecas (Pillow) estão instaladas.")
+
+
+# --- 4. Divisão do Dataset (Requisitos 10, 11, 12) ---
+
+st.sidebar.markdown("---")
+if st.sidebar.button("📊 Abrir Ferramenta de Divisão (Requisito 10)"):
+    if not st.session_state.IMAGE_FILES:
+        st.sidebar.warning("Carregue uma pasta de imagens primeiro.")
+    else:
+        st.session_state.show_division = True
+
+if st.session_state.get('show_division', False):
+    st.header("Divisão do Dataset (Treino/Teste/Validação)")
+    
+    # Requisito 11: Sliders de Proporção
+    col1, col2, col3 = st.columns(3)
+    train_ratio = col1.slider("Treino (%)", 0, 100, 70, key="train_r")
+    test_ratio = col2.slider("Teste (%)", 0, 100, 20, key="test_r")
+    valid_ratio = col3.slider("Validação (%)", 0, 100, 10, key="valid_r")
+    
+    if train_ratio + test_ratio + valid_ratio != 100:
+        st.error("A soma das proporções deve ser 100%. Por favor, ajuste os sliders.")
+    else:
+        # Requisito 9: Prepara o dataset (filtra apenas pares Imagem/Label existentes)
+        image_list = st.session_state.IMAGE_FILES
+        
+        # Encontra a pasta 'labels' que foi criada
+        image_dir = st.session_state.DATASET_ROOT
+        label_dir = os.path.join(os.path.dirname(image_dir), 'labels')
+        
+        # Cria a lista de caminhos esperados para os labels
+        label_list = [
+            os.path.join(label_dir, f"{os.path.splitext(os.path.basename(f))[0]}.txt") 
+            for f in image_list
+        ]
+        
+        # Filtra apenas pares de Imagem/Label existentes para garantir a integridade
+        existing_pairs = [(img, lbl) for img, lbl in zip(image_list, label_list) if os.path.exists(lbl)]
+        
+        if not existing_pairs:
+            st.warning("Nenhum par Imagem/Label (.txt) encontrado. Rotule as imagens e clique em Salvar primeiro!")
+        else:
+            X = [pair[0] for pair in existing_pairs] # Lista de paths de imagens
+            Y = [pair[1] for pair in existing_pairs] # Lista de paths de labels
+            st.info(f"Pronto para dividir {len(X)} pares de Imagem/Label.")
+            
+            if st.button("Executar Divisão (Requisito 12)", type="secondary"):
+                split_and_move_dataset(
+                    X, Y, 
+                    st.session_state.DATASET_ROOT, 
+                    train_ratio, test_ratio, valid_ratio
+                )
