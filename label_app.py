@@ -7,12 +7,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from streamlit_drawable_canvas import st_canvas
 
-# >>> NOVAS IMPORTAÇÕES PARA O POP-UP DE PASTA (Requisito de Usabilidade) <<<
-import tkinter as tk
-from tkinter import filedialog
-# >>> FIM DAS NOVAS IMPORTAÇÕES <<<
+# >>> DEPENDÊNCIA DE TKINTER REMOVIDA PARA EVITAR 'ImportError: libtk8.6.so' <<<
 
-# --- 1. Inicialização do Session State (Robusto contra KeyErrors) ---
+# --- 1. Inicialização do Session State (Robusto) ---
 
 def initialize_session_state():
     """Garante que todas as chaves necessárias existam."""
@@ -23,7 +20,6 @@ def initialize_session_state():
     if 'CURRENT_IMAGE_INDEX' not in st.session_state:
         st.session_state.CURRENT_IMAGE_INDEX = 0
     if 'BOUNDING_BOXES' not in st.session_state:
-        # Armazena os boxes desenhados na imagem atual
         st.session_state.BOUNDING_BOXES = [] 
     if 'show_division' not in st.session_state:
         st.session_state.show_division = False
@@ -34,36 +30,20 @@ def initialize_session_state():
 
 # --- 2. Funções de Ajuda e Lógica de Labeling ---
 
-def select_folder():
-    """Abre um pop-up nativo para selecionar uma pasta (via Tkinter)."""
-    # Cria uma instância do Tkinter e a esconde (não queremos a janela principal)
-    root = tk.Tk()
-    root.withdraw() 
-    
-    # Abre a caixa de diálogo de seleção de diretório
-    folder_path = filedialog.askdirectory(master=root)
-    
-    # Destrói a instância do Tkinter após o uso
-    root.destroy()
-    
-    return folder_path
-
 def to_yolo_format(box_data, img_width, img_height, class_id):
     """Converte coordenadas do canvas para o formato YOLO normalizado."""
     
-    # Assume que o canvas foi dimensionado para o tamanho da imagem para precisão.
     x = box_data['left']
     y = box_data['top']
     w = box_data['width']
     h = box_data['height']
     
-    # Convertendo para o formato YOLO (x_center, y_center, w_norm, h_norm)
+    # Conversão para YOLO (x_center, y_center, w_norm, h_norm)
     x_center = (x + w / 2) / img_width
     y_center = (y + h / 2) / img_height
     w_norm = w / img_width
     h_norm = h / img_height
     
-    # Requisito 7: Formato '<class_id> <x_center> <y_center> <width> <height>'
     return f"{class_id} {x_center:.6f} {y_center:.6f} {w_norm:.6f} {h_norm:.6f}"
 
 def save_labels(image_path, boxes_data):
@@ -79,7 +59,6 @@ def save_labels(image_path, boxes_data):
     
     # Requisito 5: Cria a pasta 'labels' no mesmo diretório pai das imagens
     image_dir = os.path.dirname(image_path)
-    # Assumimos que o DATASET_ROOT é a pasta 'images' e queremos a pasta 'labels' no nível superior (como na imagem anexa)
     label_dir = os.path.join(os.path.dirname(image_dir), 'labels') 
     
     if not os.path.exists(label_dir):
@@ -93,15 +72,13 @@ def save_labels(image_path, boxes_data):
     
     for box_info in boxes_data:
         class_id = box_info.get('class_id', st.session_state.LAST_CLASS_ID)
-        
         yolo_line = to_yolo_format(box_info, img_width, img_height, class_id)
         yolo_lines.append(yolo_line)
 
-    # Escreve no arquivo (Requisito 7)
     with open(label_file_path, 'w') as f:
         f.write('\n'.join(yolo_lines))
         
-    st.session_state.BOUNDING_BOXES = [] # Limpa os boxes após salvar
+    st.session_state.BOUNDING_BOXES = [] 
     return True
 
 def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r):
@@ -115,7 +92,6 @@ def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r)
 
     st.info("Iniciando a divisão e movimentação dos arquivos...")
     
-    # Normaliza as proporções
     train_size = train_r / 100.0
     test_size = test_r / 100.0
     
@@ -139,7 +115,6 @@ def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r)
         'valid': valid_indices,
     }
 
-    # O diretório de saída será 'YOLO_Dataset_Split' no diretório PARENT de DATASET_ROOT
     output_dir = os.path.join(os.path.dirname(root_dir), "YOLO_Dataset_Split")
     if os.path.exists(output_dir):
          st.warning("Pasta de saída já existe. Arquivos serão sobrescritos.")
@@ -147,7 +122,6 @@ def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r)
          os.makedirs(output_dir)
         
     for name, indices in datasets.items():
-        # Requisito 12: Estrutura de pastas aninhada
         img_target_dir = os.path.join(output_dir, name, 'images')
         lbl_target_dir = os.path.join(output_dir, name, 'labels')
         
@@ -162,7 +136,7 @@ def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r)
                  shutil.copy(Y_paths[i], lbl_target_dir)
 
     st.success(f"Divisão concluída! O dataset foi salvo em: **{output_dir}**")
-    st.info("As pastas 'train', 'test' e 'valid' foram criadas dentro do diretório de saída.")
+    st.info("As pastas 'train', 'test' e 'valid' foram criadas neste diretório.")
     st.session_state.show_division = False
 
 def next_image():
@@ -178,7 +152,18 @@ def prev_image():
         st.session_state.CURRENT_IMAGE_INDEX -= 1
     else:
         st.info("Primeira imagem da lista.")
-        
+
+def load_images_from_path(path_to_process):
+    """Lógica centralizada para carregar imagens e atualizar o session state."""
+    st.session_state.DATASET_ROOT = path_to_process
+    
+    all_files = glob.glob(os.path.join(path_to_process, "*.*"))
+    img_extensions = ['.jpg', '.jpeg', '.png']
+    st.session_state.IMAGE_FILES = [f for f in all_files if os.path.splitext(f)[1].lower() in img_extensions]
+    st.session_state.CURRENT_IMAGE_INDEX = 0
+    st.session_state.BOUNDING_BOXES = []
+    st.success(f"Encontradas {len(st.session_state.IMAGE_FILES)} imagens em: {path_to_process}")
+    
 # --- 3. Execução Principal ---
 
 initialize_session_state()
@@ -189,42 +174,25 @@ st.title("🎯 Plataforma de Anotação de Bounding Box (Streamlit/YOLO)")
 with st.sidebar:
     st.header("⚙️ Controles do Dataset")
     
-    st.subheader("1. Seleção da Pasta de Imagens (Requisito 1)")
+    st.subheader("1. Carregar Pasta de Imagens (Requisito 1)")
     
-    # >>> Botão Pop-up (Requisito do Usuário) <<<
-    folder_select_button = st.button("📁 Selecionar Pasta (Explorador de Arquivos)", type="primary")
-
-    if folder_select_button:
-        # Chama a função Tkinter para abrir o pop-up
-        selected_path = select_folder()
-        if selected_path:
-            st.session_state.DATASET_ROOT = selected_path
-            # Força o Streamlit a reexecutar com o novo caminho
-            st.experimental_rerun() 
-
-    # Input de texto para visualização e fallback manual
-    new_root = st.text_input(
-        "Ou insira o caminho absoluto manualmente:", 
+    # Input de texto para o caminho da pasta
+    temp_root = st.text_input(
+        "Insira o caminho absoluto da pasta de imagens:", 
         value=st.session_state.DATASET_ROOT or "",
-        key='manual_path_input'
+        key='manual_path_input',
+        help="Ex: /caminho/para/pasta/images. Copie e cole aqui."
     )
     
-    # Lógica de carregamento e validação da pasta
-    path_to_process = new_root
-    
-    if path_to_process and os.path.isdir(path_to_process) and path_to_process != st.session_state.DATASET_ROOT:
-        st.session_state.DATASET_ROOT = path_to_process
-        
-        all_files = glob.glob(os.path.join(path_to_process, "*.*"))
-        img_extensions = ['.jpg', '.jpeg', '.png']
-        st.session_state.IMAGE_FILES = [f for f in all_files if os.path.splitext(f)[1].lower() in img_extensions]
-        st.session_state.CURRENT_IMAGE_INDEX = 0
-        st.session_state.BOUNDING_BOXES = []
-        st.success(f"Encontradas {len(st.session_state.IMAGE_FILES)} imagens.")
-        st.experimental_rerun()
-    elif path_to_process and not os.path.isdir(path_to_process):
-        st.error("Caminho inválido ou pasta não encontrada.")
-    elif st.session_state.DATASET_ROOT:
+    if st.button("Carregar Pasta", type="primary"):
+        if os.path.isdir(temp_root):
+            load_images_from_path(temp_root)
+            st.experimental_rerun()
+        else:
+            st.error("Caminho inválido ou pasta não encontrada.")
+
+    # Exibe o caminho atual
+    if st.session_state.DATASET_ROOT:
          st.info(f"Pasta de trabalho: **{st.session_state.DATASET_ROOT}**")
     
     st.markdown("---") 
@@ -266,7 +234,6 @@ if st.session_state.IMAGE_FILES:
         img_width, img_height = img.size
         
         # Requisito 3: Canvas Desenho
-        # NOTA: Definimos o tamanho máximo para evitar que o canvas fique excessivamente grande.
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.3)",
             stroke_width=2,
@@ -294,7 +261,7 @@ if st.session_state.IMAGE_FILES:
                         'top': obj['top'],
                         'width': obj['width'],
                         'height': obj['height'],
-                        'class_id': st.session_state.current_class_id # Anexa o ID da classe atual
+                        'class_id': st.session_state.current_class_id
                     }
                     final_boxes_to_save.append(box_info)
                     st.write(f"Box {i+1} - Classe: **{st.session_state.current_class_id}**")
@@ -311,7 +278,7 @@ if st.session_state.IMAGE_FILES:
 
     except Exception as e:
         st.error(f"Erro ao carregar ou exibir imagem: {e}")
-        st.warning("Verifique se o caminho da pasta está correto.")
+        st.warning("Verifique se o caminho da pasta está correto e se o arquivo existe.")
 
 
 # --- 4. Divisão do Dataset (Requisitos 10, 11, 12) ---
