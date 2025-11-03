@@ -48,8 +48,12 @@ def save_labels(image_path, boxes_data):
         st.warning("Nenhum bounding box para salvar.")
         return False
 
-    img = Image.open(image_path)
-    img_width, img_height = img.size
+    try:
+        img = Image.open(image_path)
+        img_width, img_height = img.size
+    except Exception as e:
+        st.error(f"Erro ao abrir imagem para salvar labels: {e}")
+        return False
     
     image_dir = os.path.dirname(image_path)
     label_dir = os.path.join(os.path.dirname(image_dir), 'labels') 
@@ -130,24 +134,36 @@ def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r)
 def load_images_from_path(path_to_process):
     """
     Lógica centralizada para carregar imagens e atualizar o session state.
-    Utiliza os.path.normpath() para garantir compatibilidade de caminhos.
+    Inclui robustez contra erros de caminho e permissão.
     """
-    # CORREÇÃO: Normaliza o caminho para lidar com barras invertidas e formatos de OS
+    # Garante que o caminho seja tratado corretamente pelo OS (Corrigido)
     normalized_path = os.path.normpath(path_to_process)
     
+    # Adiciona Log de Depuração
+    st.code(f"Tentando validar e carregar o caminho: {normalized_path}", language='text')
+
     if not os.path.isdir(normalized_path):
-        st.error(f"Caminho inválido ou pasta não encontrada: {normalized_path}")
+        st.error(f"❌ Erro de Caminho: O Python não consegue encontrar ou acessar: {normalized_path}")
+        st.caption("Verifique se o caminho é absoluto e se o Python tem permissão de leitura. Pastas do OneDrive podem falhar.")
         return False
 
-    st.session_state.DATASET_ROOT = normalized_path
-    
-    all_files = glob.glob(os.path.join(normalized_path, "*.*"))
-    img_extensions = ['.jpg', '.jpeg', '.png']
-    st.session_state.IMAGE_FILES = [f for f in all_files if os.path.splitext(f)[1].lower() in img_extensions]
-    st.session_state.CURRENT_IMAGE_INDEX = 0
-    st.session_state.BOUNDING_BOXES = []
-    st.success(f"Encontradas {len(st.session_state.IMAGE_FILES)} imagens em: {normalized_path}")
-    return True
+    try:
+        # Tenta listar os arquivos para capturar PermissionError ou OSError
+        all_files = glob.glob(os.path.join(normalized_path, "*.*"))
+        
+        st.session_state.DATASET_ROOT = normalized_path
+        
+        img_extensions = ['.jpg', '.jpeg', '.png']
+        st.session_state.IMAGE_FILES = [f for f in all_files if os.path.splitext(f)[1].lower() in img_extensions]
+        st.session_state.CURRENT_IMAGE_INDEX = 0
+        st.session_state.BOUNDING_BOXES = []
+        st.success(f"✅ Sucesso! Encontradas {len(st.session_state.IMAGE_FILES)} imagens em: {normalized_path}")
+        return True
+        
+    except OSError as e:
+        st.error(f"❌ Erro de OS/Permissão: Ocorreu um erro ao listar arquivos: {e}")
+        st.caption("Isso pode ser um problema de permissão de pasta ou o caminho ainda não está totalmente disponível para o OS.")
+        return False
     
 # --- 3. Execução Principal ---
 
@@ -174,10 +190,9 @@ with st.sidebar:
     # Botão de Carregamento Explícito
     if st.button("Carregar Pasta", type="primary"):
         if load_images_from_path(temp_root):
-            # Recarrega se o carregamento for bem-sucedido
             st.experimental_rerun()
     
-    st.caption("DICA: Arraste e solte um arquivo abaixo para obter uma pré-visualização do nome do arquivo.")
+    st.caption("DICA: Arraste um arquivo para o campo abaixo e COPIE o caminho para o campo acima.")
     
     uploaded_file = st.file_uploader(
         "Arraste e solte um arquivo (NÃO USE PARA CARREGAR A PASTA!)",
