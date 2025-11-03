@@ -8,10 +8,21 @@ from streamlit_drawable_canvas import st_canvas
 
 # --- Configurações Iniciais ---
 st.set_page_config(layout="wide", page_title="Labeling Tool (YOLO Format)")
-DATASET_ROOT = st.session_state.get('DATASET_ROOT', None)
-IMAGE_FILES = st.session_state.get('IMAGE_FILES', [])
-CURRENT_IMAGE_INDEX = st.session_state.get('CURRENT_IMAGE_INDEX', 0)
-CLASS_LABELS = st.session_state.get('CLASS_LABELS', {}) # Para armazenar classes usadas
+def initialize_session_state():
+    """Garante que todas as chaves necessárias existam no st.session_state."""
+    if 'DATASET_ROOT' not in st.session_state:
+        st.session_state.DATASET_ROOT = None
+    if 'IMAGE_FILES' not in st.session_state:
+        st.session_state.IMAGE_FILES = []
+    if 'CURRENT_IMAGE_INDEX' not in st.session_state:
+        st.session_state.CURRENT_IMAGE_INDEX = 0
+    if 'CLASS_LABELS' not in st.session_state:
+        st.session_state.CLASS_LABELS = {}
+    if 'show_division' not in st.session_state:
+        st.session_state.show_division = False
+
+# Chame a função logo após st.set_page_config()
+initialize_session_state()
 
 # --- Funções de Ajuda ---
 
