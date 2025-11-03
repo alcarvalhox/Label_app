@@ -28,9 +28,6 @@ def initialize_session_state():
 
 # --- 2. Funções de Ajuda e Lógica de Labeling ---
 
-# Funções to_yolo_format, save_labels, split_and_move_dataset, next_image, prev_image
-# (Mantidas idênticas à última versão funcional, pois a lógica está correta)
-
 def to_yolo_format(box_data, img_width, img_height, class_id):
     """Converte coordenadas do canvas para o formato YOLO normalizado."""
     x = box_data['left']
@@ -167,7 +164,7 @@ with st.sidebar:
     
     st.subheader("1. Carregar Pasta de Imagens (Requisito 1)")
     
-    st.caption("Insira o caminho absoluto da pasta (ex: C:\\Users\\...\\images):")
+    st.caption("Copie e cole o caminho absoluto da pasta (ex: C:\\Users\\...\\images):")
     
     # Input de texto para o caminho da pasta
     temp_root = st.text_input(
@@ -177,26 +174,27 @@ with st.sidebar:
         label_visibility="collapsed"
     )
     
-    # >>> MUDANÇA: Substitui o botão "Carregar" pela instrução de arrastar/soltar
+    # >>> BOTÃO DE CARREGAMENTO REINTEGRADO <<<
+    if st.button("▶️ Carregar Pasta", type="primary"):
+        if os.path.isdir(temp_root):
+            load_images_from_path(temp_root)
+            st.experimental_rerun()
+        else:
+            st.error(f"Caminho inválido ou pasta não encontrada: {temp_root}")
+            
+    # Lógica para o Drag-and-Drop de um arquivo (UX)
     st.markdown("---")
-    st.caption("**DICA:** Você também pode arrastar um único arquivo de imagem para o espaço abaixo e depois COPIAR o caminho dele para o campo acima.")
+    st.caption("**DICA:** Arraste um arquivo de imagem para o espaço abaixo e depois COPIE o caminho dele para o campo acima.")
     
-    uploaded_file = st.file_uploader(
-        "Arraste e solte um arquivo (para visualizar o caminho, NÃO USE PARA CARREGAR A PASTA!)",
+    st.file_uploader(
+        "Arraste um arquivo (NÃO use para carregar a pasta!)",
         type=['jpg', 'jpeg', 'png', 'txt'],
         accept_multiple_files=False,
-        key='file_hint_uploader'
+        key='file_hint_uploader',
+        label_visibility="collapsed"
     )
     
-    if uploaded_file is not None:
-        st.code(f"Nome do arquivo: {uploaded_file.name}", language='text')
-        st.warning("Lembre-se: Você deve digitar o caminho da PASTA no campo acima!")
-
-    # Lógica de Carregamento e Validação da Pasta
-    if st.session_state.DATASET_ROOT != temp_root and os.path.isdir(temp_root):
-        load_images_from_path(temp_root)
-        # Não usamos rerun aqui para permitir que o usuário refine o caminho
-    
+    # Exibe o caminho atual
     if st.session_state.DATASET_ROOT:
          st.info(f"Pasta de trabalho: **{st.session_state.DATASET_ROOT}**")
     
