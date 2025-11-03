@@ -1,0 +1,5 @@
+streamlit
+Pillow
+numpy
+scikit-learn # Para a divisão de dataset
+streamlit-drawable-canvas # Essencial para o desenho
