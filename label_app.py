@@ -7,9 +7,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from streamlit_drawable_canvas import st_canvas
 
-# >>> DEPENDÊNCIA DE TKINTER REMOVIDA PARA EVITAR 'ImportError: libtk8.6.so' <<<
-
-# --- 1. Inicialização do Session State (Robusto) ---
+# --- 1. Inicialização do Session State ---
 
 def initialize_session_state():
     """Garante que todas as chaves necessárias existam."""
@@ -30,15 +28,16 @@ def initialize_session_state():
 
 # --- 2. Funções de Ajuda e Lógica de Labeling ---
 
+# Funções to_yolo_format, save_labels, split_and_move_dataset, next_image, prev_image
+# (Mantidas idênticas à última versão funcional, pois a lógica está correta)
+
 def to_yolo_format(box_data, img_width, img_height, class_id):
     """Converte coordenadas do canvas para o formato YOLO normalizado."""
-    
     x = box_data['left']
     y = box_data['top']
     w = box_data['width']
     h = box_data['height']
     
-    # Conversão para YOLO (x_center, y_center, w_norm, h_norm)
     x_center = (x + w / 2) / img_width
     y_center = (y + h / 2) / img_height
     w_norm = w / img_width
@@ -47,9 +46,7 @@ def to_yolo_format(box_data, img_width, img_height, class_id):
     return f"{class_id} {x_center:.6f} {y_center:.6f} {w_norm:.6f} {h_norm:.6f}"
 
 def save_labels(image_path, boxes_data):
-    """
-    Cria ou atualiza o arquivo .txt na pasta 'labels' (Requisitos 5, 6, 7).
-    """
+    """Cria ou atualiza o arquivo .txt na pasta 'labels' (Requisitos 5, 6, 7)."""
     if not boxes_data:
         st.warning("Nenhum bounding box para salvar.")
         return False
@@ -57,19 +54,16 @@ def save_labels(image_path, boxes_data):
     img = Image.open(image_path)
     img_width, img_height = img.size
     
-    # Requisito 5: Cria a pasta 'labels' no mesmo diretório pai das imagens
     image_dir = os.path.dirname(image_path)
     label_dir = os.path.join(os.path.dirname(image_dir), 'labels') 
     
     if not os.path.exists(label_dir):
         os.makedirs(label_dir)
 
-    # Requisito 6: Cria o nome do arquivo .txt
     base_name = os.path.splitext(os.path.basename(image_path))[0]
     label_file_path = os.path.join(label_dir, f"{base_name}.txt")
 
     yolo_lines = []
-    
     for box_info in boxes_data:
         class_id = box_info.get('class_id', st.session_state.LAST_CLASS_ID)
         yolo_line = to_yolo_format(box_info, img_width, img_height, class_id)
@@ -82,10 +76,7 @@ def save_labels(image_path, boxes_data):
     return True
 
 def split_and_move_dataset(X_paths, Y_paths, root_dir, train_r, test_r, valid_r):
-    """
-    Divide o dataset e move os arquivos de Imagem e Label para a estrutura de pastas do YOLO.
-    (Requisitos 9, 11, 12)
-    """
+    """Divide o dataset e move os arquivos de Imagem e Label (Requisitos 9, 11, 12)."""
     if train_r + test_r + valid_r != 100:
         st.error("A soma das proporções deve ser 100%.")
         return
@@ -176,22 +167,36 @@ with st.sidebar:
     
     st.subheader("1. Carregar Pasta de Imagens (Requisito 1)")
     
+    st.caption("Insira o caminho absoluto da pasta (ex: C:\\Users\\...\\images):")
+    
     # Input de texto para o caminho da pasta
     temp_root = st.text_input(
-        "Insira o caminho absoluto da pasta de imagens:", 
+        "Caminho Absoluto da Pasta:", 
         value=st.session_state.DATASET_ROOT or "",
         key='manual_path_input',
-        help="Ex: /caminho/para/pasta/images. Copie e cole aqui."
+        label_visibility="collapsed"
     )
     
-    if st.button("Carregar Pasta", type="primary"):
-        if os.path.isdir(temp_root):
-            load_images_from_path(temp_root)
-            st.experimental_rerun()
-        else:
-            st.error("Caminho inválido ou pasta não encontrada.")
+    # >>> MUDANÇA: Substitui o botão "Carregar" pela instrução de arrastar/soltar
+    st.markdown("---")
+    st.caption("**DICA:** Você também pode arrastar um único arquivo de imagem para o espaço abaixo e depois COPIAR o caminho dele para o campo acima.")
+    
+    uploaded_file = st.file_uploader(
+        "Arraste e solte um arquivo (para visualizar o caminho, NÃO USE PARA CARREGAR A PASTA!)",
+        type=['jpg', 'jpeg', 'png', 'txt'],
+        accept_multiple_files=False,
+        key='file_hint_uploader'
+    )
+    
+    if uploaded_file is not None:
+        st.code(f"Nome do arquivo: {uploaded_file.name}", language='text')
+        st.warning("Lembre-se: Você deve digitar o caminho da PASTA no campo acima!")
 
-    # Exibe o caminho atual
+    # Lógica de Carregamento e Validação da Pasta
+    if st.session_state.DATASET_ROOT != temp_root and os.path.isdir(temp_root):
+        load_images_from_path(temp_root)
+        # Não usamos rerun aqui para permitir que o usuário refine o caminho
+    
     if st.session_state.DATASET_ROOT:
          st.info(f"Pasta de trabalho: **{st.session_state.DATASET_ROOT}**")
     
@@ -201,7 +206,6 @@ with st.sidebar:
     if st.session_state.IMAGE_FILES:
         st.subheader("2. Navegação e Status")
         
-        # Navegação
         col_prev, col_next = st.columns(2)
         col_prev.button("⬅️ Anterior", on_click=prev_image)
         col_next.button("Próxima ➡️", on_click=next_image)
@@ -275,11 +279,9 @@ if st.session_state.IMAGE_FILES:
                 else:
                     st.error("Erro ao salvar labels.")
 
-
     except Exception as e:
         st.error(f"Erro ao carregar ou exibir imagem: {e}")
         st.warning("Verifique se o caminho da pasta está correto e se o arquivo existe.")
-
 
 # --- 4. Divisão do Dataset (Requisitos 10, 11, 12) ---
 
@@ -293,7 +295,6 @@ if st.sidebar.button("📊 Abrir Ferramenta de Divisão (Requisito 10)"):
 if st.session_state.get('show_division', False):
     st.header("Divisão do Dataset (Treino/Teste/Validação)")
     
-    # Requisito 11: Sliders de Proporção
     col1, col2, col3 = st.columns(3)
     train_ratio = col1.slider("Treino (%)", 0, 100, 70, key="train_r")
     test_ratio = col2.slider("Teste (%)", 0, 100, 20, key="test_r")
